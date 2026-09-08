@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+*.engine
+*.onnx
+*.pt
+*.wts
+*.weights
+.venv/
+*.zip
+.DS_Store
+交付/
+model/
+models/
+config/classes.yaml
+**/classes.yaml
+**/*_internal*
