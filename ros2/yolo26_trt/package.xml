@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>yolo26_trt</name>
+  <version>1.0.0</version>
+  <description>YOLO26 TensorRT ROS 2 detect node (boxes only)</description>
+  <maintainer email="yanqifa9@gmail.com">yanqifa</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>rclcpp</depend>
+  <depend>sensor_msgs</depend>
+  <depend>cv_bridge</depend>
+  <exec_depend>ros2launch</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

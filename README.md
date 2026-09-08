@@ -12,7 +12,7 @@
 - 检测/分割结果之后的导航、关联、状态机、BEV 路径等处理
 - 内部权重、engine、数据集、启动业务用的 launch/config
 
-推理脚本只画框并发布带框图。类别名以你自己的权重为准（COCO 或自训均可），本仓库不维护一份业务类别清单。
+C++ / Python 节点都只画框并发布带框图。类别名以你自己的权重为准（COCO 或自训均可），本仓库不维护一份业务类别清单。默认框上写的是 `id:数字`；若要显示名字，自己在 launch 里传入 `class_names`。
 
 ## 你能得到什么
 
@@ -22,7 +22,8 @@
 | `scripts/02_export_tensorrt.py` | `.pt` → TensorRT engine（FP16 / INT8） |
 | `scripts/03_bench_infer.py` | 测真实 FPS，不拿桌面 GPU 的数字糊弄 |
 | `scripts/04_usb_camera_detect.py` | USB 摄像头实时画框 |
-| `ros2/yolo_edge_kit/` | ROS 2 节点：订图像、发检测图 |
+| `ros2/yolo_edge_kit/` | ROS 2 Python 节点：订图像、发检测图 |
+| `ros2/yolo26_trt/` | YOLO26 TensorRT C++ 节点：GPU letterbox + `[1,max_det,6]` 端到端推理，只画框 |
 | `排错手册.md` | Jetson 上最常见的 12 个坑 |
 
 ## 环境
@@ -61,6 +62,20 @@ colcon build --packages-select yolo_edge_kit
 source install/setup.bash
 ros2 launch yolo_edge_kit detect.launch.py \
   weights:=$HOME/yolov8n.engine \
+  image_topic:=/camera/color/image_raw
+```
+
+YOLO26 TensorRT C++（engine 必须是端到端 `[1, max_det, 6]`，不要把 Ultralytics 旧版带 NMS 的 engine 塞进来）：
+
+```bash
+yolo export model=yolo26n.pt format=onnx imgsz=640
+trtexec --onnx=yolo26n.onnx --saveEngine=yolo26n.engine --fp16
+
+# 把 ros2/yolo26_trt 拷进 workspace/src 后
+colcon build --packages-select yolo26_trt
+source install/setup.bash
+ros2 launch yolo26_trt detect.launch.py \
+  engine_path:=$HOME/yolo26n.engine \
   image_topic:=/camera/color/image_raw
 ```
 
