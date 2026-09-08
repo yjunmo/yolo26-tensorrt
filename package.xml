@@ -2,7 +2,7 @@
 <package format="3">
   <name>yolo26_trt</name>
   <version>1.0.0</version>
-  <description>YOLO26 TensorRT ROS 2 detect node (boxes only)</description>
+  <description>Open-source YOLO26 TensorRT 10 deploy: CUDA letterbox, end-to-end [1,max_det,6] detect, ROS 2 image node and OpenCV demo.</description>
   <maintainer email="yanqifa9@gmail.com">yanqifa</maintainer>
   <license>MIT</license>
 

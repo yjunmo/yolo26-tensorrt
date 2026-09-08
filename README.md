@@ -1,90 +1,92 @@
-# Jetson YOLO 部署包
+# YOLO26 TensorRT
 
-把 Ultralytics YOLO 权重部署到 NVIDIA Jetson（Orin Nano / Orin NX / Xavier），并可选接入 ROS 2。
+开源 YOLO26 TensorRT 10 部署：GPU letterbox、端到端 engine `[1, max_det, 6]`、画框。提供 ROS 2 节点和摄像头/视频 demo。
 
-本包是**原创脚本 + 排错步骤**，不含第三方商业权重，不含破解软件。你需要自备 `.pt` 模型（官方 `yolov8n.pt` 或自己训练的权重均可）。
+这不是业务导航工程。没有类别表、追踪关联或规划。默认显示 `id:<类别下标>`，需要名字时自己传入 `class_names`。
 
-## 本仓库明确不包含
+Open-source **YOLO26** deploy on NVIDIA TensorRT 10: GPU letterbox, end-to-end engine `[1, max_det, 6]`, draw boxes. ROS 2 node plus a camera/video demo.
 
-这是通用 Jetson / Ultralytics 部署示例，**不是**任何公司产品的开源版。因此不会出现、也不会后续加入：
+This is **not** a product navigation stack. There is no class taxonomy, tracking association, or planning. Boxes show `id:<class_index>` unless you pass your own `class_names`.
 
-- 业务模型的类别表、中文映射、按类置信度
-- 检测/分割结果之后的导航、关联、状态机、BEV 路径等处理
-- 内部权重、engine、数据集、启动业务用的 launch/config
+## Features
 
-C++ / Python 节点都只画框并发布带框图。类别名以你自己的权重为准（COCO 或自训均可），本仓库不维护一份业务类别清单。默认框上写的是 `id:数字`；若要显示名字，自己在 launch 里传入 `class_names`。
+- TensorRT 10 C++ runtime (`enqueueV3`)
+- CUDA warp-affine letterbox (BGR→RGB, `/255`, HWC→CHW)
+- Confidence filter + letterbox inverse mapping
+- `yolo26_trt_node`: subscribe `sensor_msgs/Image`, publish annotated image
+- `yolo26_trt_demo`: USB camera or video file, no ROS required at runtime besides the build
 
-## 你能得到什么
+## Requirements
 
-| 文件 | 作用 |
-|------|------|
-| `scripts/01_check_jetson.sh` | 检查 JetPack、CUDA、TensorRT、摄像头 |
-| `scripts/02_export_tensorrt.py` | `.pt` → TensorRT engine（FP16 / INT8） |
-| `scripts/03_bench_infer.py` | 测真实 FPS，不拿桌面 GPU 的数字糊弄 |
-| `scripts/04_usb_camera_detect.py` | USB 摄像头实时画框 |
-| `ros2/yolo_edge_kit/` | ROS 2 Python 节点：订图像、发检测图 |
-| `ros2/yolo26_trt/` | YOLO26 TensorRT C++ 节点：GPU letterbox + `[1,max_det,6]` 端到端推理，只画框 |
-| `排错手册.md` | Jetson 上最常见的 12 个坑 |
+- Ubuntu 20.04 / 22.04, ROS 2 Humble (or compatible)
+- CUDA + TensorRT 10
+- OpenCV, `cv_bridge`
+- Engine **must** be built on the same device / JetPack you run
+- Engine output rank-3 with last dim **6**: `[x1, y1, x2, y2, conf, class_id]`
 
-## 环境
+Jetson Orin defaults to `sm_87`. Override `-DCMAKE_CUDA_ARCHITECTURES=` if needed. x86 builds look for TensorRT under `/usr/local/TensorRT` (`-DTENSORRT_ROOT=`).
 
-- Ubuntu 20.04 / 22.04
-- JetPack 5.x 或 6.x（engine 必须在**同一块板、同一 JetPack**上导出）
-- Python 3.8+
-- `pip install ultralytics opencv-python-headless`
-
-ROS 2 节点额外需要：Humble 或 Iron、`cv_bridge`、`sensor_msgs`。
-
-## 10 分钟跑通
-
-在 **Jetson 本机**执行（不要在 x86 电脑上导出 engine 再拷过去）：
+## Build (ROS 2 workspace)
 
 ```bash
-# 1. 看环境缺什么
-bash scripts/01_check_jetson.sh
-
-# 2. 导出 FP16 engine（把 your.pt 换成你的权重）
-python3 scripts/02_export_tensorrt.py --weights yolov8n.pt --imgsz 640 --half
-
-# 3. 测速
-python3 scripts/03_bench_infer.py --weights yolov8n.engine --imgsz 640
-
-# 4. 摄像头
-python3 scripts/04_usb_camera_detect.py --weights yolov8n.engine --source 0
-```
-
-ROS 2：
-
-```bash
-cd ros2
-# 把 yolo_edge_kit 拷进你的 workspace/src 后：
-colcon build --packages-select yolo_edge_kit
-source install/setup.bash
-ros2 launch yolo_edge_kit detect.launch.py \
-  weights:=$HOME/yolov8n.engine \
-  image_topic:=/camera/color/image_raw
-```
-
-YOLO26 TensorRT C++（engine 必须是端到端 `[1, max_det, 6]`，不要把 Ultralytics 旧版带 NMS 的 engine 塞进来）：
-
-```bash
-yolo export model=yolo26n.pt format=onnx imgsz=640
-trtexec --onnx=yolo26n.onnx --saveEngine=yolo26n.engine --fp16
-
-# 把 ros2/yolo26_trt 拷进 workspace/src 后
+mkdir -p ~/ws/src
+git clone <this-repo> ~/ws/src/yolo26_trt
+cd ~/ws
 colcon build --packages-select yolo26_trt
 source install/setup.bash
+```
+
+## Export engine (on the target)
+
+```bash
+pip install ultralytics
+# official or your trained YOLO26 weights
+yolo export model=yolo26n.pt format=onnx imgsz=640
+trtexec --onnx=yolo26n.onnx --saveEngine=yolo26n.engine --fp16
+```
+
+Helper:
+
+```bash
+bash scripts/01_check_jetson.sh
+bash scripts/export_engine.sh yolo26n.pt yolo26n.engine 640
+```
+
+Do **not** feed a classic Ultralytics engine that still expects host-side NMS.
+
+## Run
+
+```bash
+# ROS 2
 ros2 launch yolo26_trt detect.launch.py \
   engine_path:=$HOME/yolo26n.engine \
   image_topic:=/camera/color/image_raw
+
+# camera demo (q to quit)
+ros2 run yolo26_trt yolo26_trt_demo $HOME/yolo26n.engine 0 0.25
 ```
 
-## 验收标准（建议你按这个跟卖家/自己核对）
+Optional names (your list, not shipped here):
 
-- `01_check_jetson.sh` 能打印 JetPack / TensorRT 版本
-- `03_bench_infer.py` 在 Orin Nano 640 输入、YOLOv8n FP16 下，常见结果大约十几到几十 FPS（取决于散热和 nvpmodel）
-- 摄像头窗口或 ROS 话题 `/yolo/image` 能看到框
+```bash
+ros2 run yolo26_trt yolo26_trt_node --ros-args \
+  -p engine_path:=$HOME/yolo26n.engine \
+  -p class_names:="['person','bicycle','car']"
+```
 
-## 许可
+## Layout
 
-个人学习与项目使用。禁止把本包改头换面再去闲鱼/网盘二次售卖。
+```
+CMakeLists.txt
+package.xml
+launch/detect.launch.py
+src/yolo26.{h,cpp}      # engine + detect()
+src/preprocess.{h,cu}   # CUDA letterbox
+src/detect_node.cpp     # ROS 2
+src/demo.cpp            # OpenCV demo
+scripts/
+```
+
+## License
+
+MIT. Bring your own weights; this repo does not include models or datasets.

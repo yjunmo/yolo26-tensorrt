@@ -6,11 +6,9 @@ __pycache__/
 *.wts
 *.weights
 .venv/
-*.zip
+build/
+install/
+log/
 .DS_Store
-交付/
 model/
 models/
-config/classes.yaml
-**/classes.yaml
-**/*_internal*

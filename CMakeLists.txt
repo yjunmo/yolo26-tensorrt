@@ -43,23 +43,31 @@ add_executable(yolo26_trt_node
     src/yolo26.cpp
     src/preprocess.cu
 )
+add_executable(yolo26_trt_demo
+    src/demo.cpp
+    src/yolo26.cpp
+    src/preprocess.cu
+)
 
-target_include_directories(yolo26_trt_node PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${OpenCV_INCLUDE_DIRS}
-    ${TENSORRT_INCLUDE_DIRS}
-)
-target_link_directories(yolo26_trt_node PRIVATE ${TENSORRT_LINK_DIRS})
-target_link_libraries(yolo26_trt_node ${OpenCV_LIBS} CUDA::cudart nvinfer)
-target_compile_options(yolo26_trt_node PRIVATE
-    -Wno-deprecated-declarations
-    $<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda>
-)
+foreach(_tgt yolo26_trt_node yolo26_trt_demo)
+    target_include_directories(${_tgt} PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${OpenCV_INCLUDE_DIRS}
+        ${TENSORRT_INCLUDE_DIRS}
+    )
+    target_link_directories(${_tgt} PRIVATE ${TENSORRT_LINK_DIRS})
+    target_link_libraries(${_tgt} ${OpenCV_LIBS} CUDA::cudart nvinfer)
+    target_compile_options(${_tgt} PRIVATE
+        -Wno-deprecated-declarations
+        $<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda>
+    )
+    set_target_properties(${_tgt} PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+endforeach()
 
 ament_target_dependencies(yolo26_trt_node rclcpp sensor_msgs cv_bridge)
-set_target_properties(yolo26_trt_node PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 
-install(TARGETS yolo26_trt_node DESTINATION lib/${PROJECT_NAME})
+install(TARGETS yolo26_trt_node yolo26_trt_demo DESTINATION lib/${PROJECT_NAME})
 install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
+install(PROGRAMS scripts/01_check_jetson.sh scripts/export_engine.sh DESTINATION lib/${PROJECT_NAME})
 
 ament_package()
